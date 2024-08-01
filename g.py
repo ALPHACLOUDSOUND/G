@@ -1,98 +1,128 @@
-import logging
-import random
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters, CallbackContext
+import json
+from random import choice
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import (
+    Updater,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    Filters,
+    CallbackContext,
+)
 
-# API credentials
+API_ID = '26661233'
+API_HASH = '2714c0f32cbede4c64f4e9fd628dbe29'
 BOT_TOKEN = '7257335666:AAFAcI84Jxv-Be5N8mfyjB-gf3wYpJBjAIE'
-GROUP_ID = '1002070732383'  # Replace with your group ID
-OWNER_ID = '7049798779'  # Telegram ID of the bot owner
+GROUP_ID = -1002070732383  # Example group ID
+BOT_OWNER_ID = 7049798779  # Example bot owner ID
+CHANNEL_ID =  -1002150575443 # Example channel ID to save participant details
+GROUP_LINK = 'https://t.me/tamilchattingu'
 
-# Store user UPI info
-user_upi_info = {}
+# Helper Functions
+def is_user_in_group(context: CallbackContext, user_id: int) -> bool:
+    try:
+        member = context.bot.get_chat_member(GROUP_ID, user_id)
+        return member.status in ['member', 'administrator', 'creator']
+    except:
+        return False
 
-# Configure logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+def save_participant_to_channel(user_id: int, username: str, upi_id: str):
+    message = json.dumps({
+        'user_id': user_id,
+        'username': username,
+        'upi_id': upi_id
+    }, indent=4)
+    # Send participant details to the channel
+    context.bot.send_message(
+        chat_id=CHANNEL_ID,
+        text=f"New Participant:\n{message}"
+    )
 
-def start(update: Update, context: CallbackContext) -> None:
-    keyboard = [[InlineKeyboardButton("Join Giveaway", callback_data='join')]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text("Welcome to the Giveaway Bot! Click the button below to join the giveaway.", reply_markup=reply_markup)
+def get_participants_from_channel(context: CallbackContext):
+    messages = context.bot.get_chat_history(CHANNEL_ID, limit=100)  # Adjust limit as needed
+    participants = []
+    for message in messages:
+        try:
+            participant = json.loads(message.text)
+            participants.append(participant)
+        except json.JSONDecodeError:
+            continue
+    return participants
 
-def button(update: Update, context: CallbackContext) -> None:
-    query = update.callback_query
-    user_id = query.from_user.id
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text(
+        "Welcome to the Giveaway Bot! Send your UPI ID to participate in the giveaway."
+    )
 
-    if query.data == 'join':
-        chat_member = context.bot.get_chat_member(chat_id=GROUP_ID, user_id=user_id)
-        
-        if chat_member.status in ['member', 'administrator', 'creator']:
-            if user_id not in user_upi_info:
-                user_upi_info[user_id] = {'upi': None, 'username': query.from_user.username}
-                query.edit_message_text("You've successfully joined the group! Please send your UPI ID to participate in the giveaway.")
-                # Notify the owner about the new user
-                context.bot.send_message(
-                    chat_id=OWNER_ID,
-                    text=f"New participant:\nUser ID: {user_id}\nUsername: {query.from_user.username}"
-                )
-            else:
-                query.edit_message_text("You are already entered in the giveaway.")
-        else:
-            query.edit_message_text("Please join the group first to participate in the giveaway.")
+def participate(update: Update, context: CallbackContext):
+    user = update.message.from_user
+    user_id = user.id
+    username = user.username
+    upi_id = update.message.text
 
-def collect_upi(update: Update, context: CallbackContext) -> None:
-    user_id = update.message.from_user.id
-    if user_id in user_upi_info:
-        user_upi_info[user_id]['upi'] = update.message.text.strip()
-        update.message.reply_text("Thank you! Your UPI ID has been recorded.")
-    else:
-        update.message.reply_text("You need to join the group first using the inline command.")
-
-def draw(update: Update, context: CallbackContext) -> None:
-    if update.message.from_user.id != int(OWNER_ID):
-        update.message.reply_text("Only the bot owner can draw the giveaway.")
+    if not is_user_in_group(context, user_id):
+        update.message.reply_text("You must join the specified group to participate.")
         return
 
-    if not user_upi_info:
+    save_participant_to_channel(user_id, username, upi_id)
+    update.message.reply_text("You have successfully entered the giveaway.")
+
+def select_winner(update: Update, context: CallbackContext):
+    if update.message.from_user.id != BOT_OWNER_ID:
+        update.message.reply_text("Only the bot owner can select a winner.")
+        return
+
+    participants = get_participants_from_channel(context)
+    if not participants:
         update.message.reply_text("No participants found.")
         return
 
-    winner_id = random.choice(list(user_upi_info.keys()))
-    winner_upi = user_upi_info[winner_id]['upi']
-    winner_username = user_upi_info[winner_id]['username']
-    
-    # Send the winner information to the owner
+    winner = choice(participants)
     context.bot.send_message(
-        chat_id=OWNER_ID,
-        text=f"Winner Details:\nUser ID: {winner_id}\nUsername: {winner_username}\nUPI ID: {winner_upi}"
+        chat_id=update.message.chat_id,
+        text=f"The winner is @{winner['username']} with UPI ID {winner['upi_id']}."
     )
 
-    # Forward all UPI IDs to the bot owner's private chat
-    upi_list = "\n".join(f"User ID: {user_id}, Username: {info['username']}, UPI ID: {info['upi']}" for user_id, info in user_upi_info.items())
-    context.bot.send_message(
-        chat_id=OWNER_ID,
-        text=f"All UPI IDs:\n{upi_list}"
-    )
+def show_commands(update: Update, context: CallbackContext):
+    keyboard = [
+        [
+            InlineKeyboardButton("Start", callback_data='start'),
+            InlineKeyboardButton("Participate", callback_data='participate'),
+            InlineKeyboardButton("Select Winner", callback_data='select_winner'),
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    update.message.reply_text('Choose a command:', reply_markup=reply_markup)
 
-    update.message.reply_text(f"The winner is User ID: {winner_id}, Username: {winner_username} with UPI ID: {winner_upi}")
-    update.message.reply_text("Thanks for using our services!")
+def button(update: Update, context: CallbackContext):
+    query = update.callback_query
+    query.answer()
+
+    if query.data == 'start':
+        start(query, context)
+    elif query.data == 'participate':
+        query.edit_message_text(text="Send your UPI ID to participate.")
+    elif query.data == 'select_winner':
+        select_winner(query, context)
+
+def check_group_membership(update: Update, context: CallbackContext):
+    user_id = update.message.from_user.id
+    if not is_user_in_group(context, user_id):
+        update.message.reply_text(f"You need to join the group to participate. Please join: {GROUP_LINK}")
+    else:
+        update.message.reply_text("You are already a member of the group.")
 
 def main():
-    # Initialize the bot
-    updater = Updater(BOT_TOKEN)
+    updater = Updater(token=BOT_TOKEN, use_context=True)
     dp = updater.dispatcher
-    
-    # Define command handlers
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, collect_upi))
-    
-    # Define callback query handler for inline buttons
-    dp.add_handler(CallbackQueryHandler(button))
-    
-    # Define admin command handler for drawing the giveaway
-    dp.add_handler(CommandHandler("draw", draw))
 
-    # Start the bot
+    dp.add_handler(CommandHandler('start', start))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, participate))
+    dp.add_handler(CommandHandler('select_winner', select_winner))
+    dp.add_handler(CommandHandler('show_commands', show_commands))
+    dp.add_handler(CallbackQueryHandler(button))
+    dp.add_handler(MessageHandler(Filters.status_update.new_chat_members, check_group_membership))
+
     updater.start_polling()
     updater.idle()
 
