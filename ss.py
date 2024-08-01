@@ -37,10 +37,10 @@ def button(update: Update, context: CallbackContext) -> None:
                 winner_id = random.choice(list(users_upi.keys()))
                 winner_upi = users_upi[winner_id]
                 message = (
-                    f"Congratulations @{winner_id}! You have won the giveaway.\n\n"
-                    f"UPI: {winner_upi}\n\n"
-                    "Details of all participants:\n"
-                    f"{'\n'.join([f'@{uid} - UPI: {upi}' for uid, upi in users_upi.items()])}"
+                      "Congratulations @" + winner_id + "! You have won the giveaway.\n\n"
+                    "UPI: " + winner_upi + "\n\n"
+                    "Details of all participants:\n" +
+                    "\n".join(["@" + uid + " - UPI: " + upi for uid, upi in users_upi.items()])
                 )
                 context.bot.send_message(
                     chat_id=PRIVATE_CHANNEL_ID,
