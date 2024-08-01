@@ -4,9 +4,9 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, CallbackContext
 
 # API credentials
-BOT_TOKEN = 'your_bot_token'
-GROUP_ID = 'your_group_id'  # Replace with your group ID
-OWNER_ID = 'your_telegram_id'  # Telegram ID of the bot owner
+BOT_TOKEN = '7257335666:AAFAcI84Jxv-Be5N8mfyjB-gf3wYpJBjAIE'
+GROUP_ID = '-1002070732383'  # Replace with your group ID
+OWNER_ID = '7049798779'
 
 # Store user UPI info
 user_upi_info = {}
