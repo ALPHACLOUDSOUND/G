@@ -5,7 +5,8 @@ import random
 # Configuration (replace with your actual values)
 BOT_TOKEN = '7257335666:AAFAcI84Jxv-Be5N8mfyjB-gf3wYpJBjAIE'
 ADMIN_ID = '7049798779'
-GROUP_ID = '-1002070732383'
+GROUP_ID = '-1002070732383'  # The ID of the group to verify membership
+GROUP_LINK = 'https://t.me/tamilchattingu'  # The invite link of the group
 PRIVATE_CHANNEL_ID = '@giveawaytea'  # Private channel where UPI details will be stored
 
 # Global variables
@@ -37,7 +38,7 @@ def button(update: Update, context: CallbackContext) -> None:
                 winner_id = random.choice(list(users_upi.keys()))
                 winner_upi = users_upi[winner_id]
                 message = (
-                      "Congratulations @" + winner_id + "! You have won the giveaway.\n\n"
+                    "Congratulations @" + winner_id + "! You have won the giveaway.\n\n"
                     "UPI: " + winner_upi + "\n\n"
                     "Details of all participants:\n" +
                     "\n".join(["@" + uid + " - UPI: " + upi for uid, upi in users_upi.items()])
@@ -73,18 +74,27 @@ def handle_message(update: Update, context: CallbackContext) -> None:
         if user_id in users_upi:
             update.message.reply_text('You have already participated in the giveaway.')
         else:
-            users_upi[user_id] = update.message.text
-            update.message.reply_text('Your UPI has been recorded. Good luck!')
+            if check_group_membership(context, user_id):
+                users_upi[user_id] = update.message.text
+                update.message.reply_text('Your UPI has been recorded. Good luck!')
+            else:
+                update.message.reply_text(
+                    'You need to join the group to participate in the giveaway. Please join the group using this link: ' + GROUP_LINK
+                )
+
+def check_group_membership(context: CallbackContext, user_id: str) -> bool:
+    try:
+        member = context.bot.get_chat_member(chat_id=GROUP_ID, user_id=user_id)
+        return member.status in ['member', 'administrator', 'creator']
+    except Exception as e:
+        print(f"Error checking user {user_id}: {e}")
+        return False
 
 def check_group_members(context: CallbackContext) -> None:
     global users_upi
     for user_id in list(users_upi.keys()):
-        try:
-            member = context.bot.get_chat_member(chat_id=GROUP_ID, user_id=user_id)
-            if member.status not in ['member', 'administrator', 'creator']:
-                del users_upi[user_id]
-        except Exception as e:
-            print(f"Error checking user {user_id}: {e}")
+        if not check_group_membership(context, user_id):
+            del users_upi[user_id]
     context.bot.send_message(chat_id=ADMIN_ID, text="Group membership check complete.")
 
 def main() -> None:
