@@ -5,7 +5,7 @@ from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageH
 
 # API credentials
 BOT_TOKEN = '7257335666:AAFAcI84Jxv-Be5N8mfyjB-gf3wYpJBjAIE'
-GROUP_ID = '-1002070732383'  # Replace with your group ID
+GROUP_ID = '1002070732383'  # Replace with your group ID
 OWNER_ID = '7049798779'  # Telegram ID of the bot owner
 
 # Store user UPI info
